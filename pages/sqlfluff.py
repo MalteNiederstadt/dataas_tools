@@ -29,7 +29,7 @@ def fluff_results(sql_code):
 
     dialect = 'bigquery'
     linted = lint(sql, dialect=dialect)
-    fixed_sql = fix(sql, dialect=dialect)
+    fixed_sql = fix(sql, dialect=dialect, config_path='./setup.cfg')
     return fixed_sql
 
 

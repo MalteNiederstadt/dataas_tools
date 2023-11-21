@@ -5,11 +5,17 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 from scipy.stats import shapiro,levene,ttest_ind,mannwhitneyu
 import plotly.graph_objects as go
+from io import BytesIO
+from pyxlsb import open_workbook as open_xlsb
 
-upload_df = st.file_uploader("upload file", type={"csv", "txt"})
+upload_df = st.file_uploader("upload file", type={"csv", "txt",'xlsx'})
 col1, col2 = st.columns(2)
+#read uploaded file , provide options of columns in form of checkbox / radiobutton 
 if upload_df is not None:
-    df = pd.read_csv(upload_df)
+    if upload_df.type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        df = pd.read_excel(upload_df)
+    else:
+        df = pd.read_csv(upload_df)
     st.dataframe(df)
     with col1:
         st.caption('Choose the column defining the group')
@@ -35,55 +41,65 @@ if upload_df is not None:
 
 
 
+
+    #setup dictionaries and datasets to be used in normality test , homogeneity test , and a b test
     normality_dict = {}
     homogeneity_dict = {}
-    dataset1 = df[df[group_column]==groups_to_compare[0]]
-    dataset2 = df[df[group_column]==groups_to_compare[1]]
-    if st.button('Perform A/B Test'):
-        # st.write(dataset1["bounce_rate"].mean())
-        # st.write(dataset2["bounce_rate"].mean())
+    groups_to_compare.sort()
+    if len(groups_to_compare) == 2:
+        dataset1 = df[df[group_column]==groups_to_compare[0]]
+        dataset2 = df[df[group_column]==groups_to_compare[1]]
 
+    def normality_test(df1,df2,column):
+        _, p = shapiro(df1[column])
+        _, p2 = shapiro(df2[column])
+        if p > 0.05 and p2 > 0.05:
+            return True
+        else:
+            return False
+    
+    def homogeneity_test(df1,df2,column):
+        _, p = levene(df1[column], df2[column])
+        if p > 0.05: 
+            return True
+        else:
+            return False
         
-        #
-        # 
-        # st.write(f'Selected groups : {",".join(list(groups_to_compare))}')
+    def to_excel(df):
+        output = BytesIO()
+        writer = pd.ExcelWriter(output, engine='xlsxwriter')
+        df.to_excel(writer, index=False, sheet_name='Sheet1')
+        workbook = writer.book
+        worksheet = writer.sheets['Sheet1']
+        format1 = workbook.add_format({'num_format': '0.00'}) 
+        worksheet.set_column('A:A', None, format1)  
+        writer.save()
+        processed_data = output.getvalue()
+        return processed_data
+        
+
+    #button to perform the a b test    
+    if st.button('Perform A/B Test'):
+        #run tests for normality and homogeneity
         for column in metric_columns:
-                stat, p = shapiro(dataset1[column])
-                if p >= 0.05:
-                    print(f"{column}: Data appears to be normally distributed")
-                   # if assumption of normality on dataset 1 is confirmed, check against dataset 2 to confirm the normality on both datasets
-                    stat, p = shapiro(dataset2[column])
-                    if p < 0.05:
-                         normality_dict[column] = False
-                    else:
-                         normality_dict[column] = True
-                # if assumption of normality on dataset 1 is refuted, set value for that column to False
-                else:
-                    print(f"{column}:Data does not appear to be normally distributed")
-                    normality_dict[column] = False
-
-
-        st.write(normality_dict)
-
-        for column in metric_columns:
-                stat, p = levene(dataset1[column], dataset2[column])
-                if p >= 0.05:
-                    print(f"{column}: Homogeneity of variances is met")
-                    homogeneity_dict[column] = True
-                else:
-                    homogeneity_dict[column] = False
-        st.write(homogeneity_dict)
+            normality_dict[column] = normality_test(dataset1,dataset2,column)
+            homogeneity_dict[column] = homogeneity_test(dataset1,dataset2,column)
 
         method = None
         results = pd.DataFrame(columns=['Gruppe 1', 'Gruppe 2', 'KPI', 'Durchschnitt 1', 'Durchschnitt 2' , 'p', 'Signifikant', 'Testmethode'])
         alpha = 0.05
+
+        #run a b test based on normality and homogeneity tests
         for key,value in normality_dict.items():
+            #check if normality assumption is confirmed, and homogeneity assumption (for the same column is confirmed)
             if value == True and homogeneity_dict[key] == True:
-                t, p = ttest_ind(dataset1[key], dataset2[key])
+                _, p = ttest_ind(dataset1[key], dataset2[key])
                 method = 'T-Test'
             else:
-                t, p = mannwhitneyu(dataset1[key], dataset2[key], alternative='two-sided')  
+                _, p = mannwhitneyu(dataset1[key], dataset2[key], alternative='two-sided')  
                 method = 'Mann-Whitney U'
+            st.write(dataset1[key].mean())
+            st.write(dataset2[key].mean())
             results_new_row = {
             'Gruppe 1': groups_to_compare[0],
             'Gruppe 2': groups_to_compare[1],
@@ -98,16 +114,36 @@ if upload_df is not None:
             results = pd.concat([results, results_new_row], ignore_index=True)
         
         
+        # Define the first custom styling function to highlight the larger value column
         def highlight_larger_value(row):
             max_col = 'Durchschnitt 1' if row['Durchschnitt 1'] > row['Durchschnitt 2'] else 'Durchschnitt 2'
             styles = ['background-color: yellow' if col == max_col else '' for col in row.index]
             return styles
 
-        # Use st.dataframe with custom styling
-        st.dataframe(results.style.apply(highlight_larger_value, axis=1))
+        # Define the second custom styling function to highlight significant rows
+        def highlight_significant_rows(row):
+            styles = ['font-weight: bold;' if row['p'] < alpha else '' for _ in row.index]
+            return styles
 
+        # Apply the custom styling functions and combine the styles
+        def apply_custom_styles(df):
+            styled_df = df.style.apply(highlight_larger_value, axis=1)
+            styled_df = styled_df.apply(highlight_significant_rows, axis=1)
+            return styled_df
 
+        # Apply the custom styles to the DataFrame
+        styled_results = apply_custom_styles(results)
 
+        # Render the styled DataFrame
+        #st.dataframe(styled_results)
+        st.write(styled_results.to_html(), unsafe_allow_html=True)
+        df_xlsx = to_excel(styled_results)
+        file_name = str(upload_df.name).split('.')[0]
+        st.download_button(label='📥 Download Results',
+                                        data=df_xlsx ,
+                                        file_name= f'{groups_to_compare[0]}_{groups_to_compare[1]}_{file_name}.xlsx')
+
+    #return a bunch of histograms
     if st.button('Plots Plots Plots'):
         for column in metric_columns:
                 fig = go.Figure()
