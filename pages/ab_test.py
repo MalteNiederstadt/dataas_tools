@@ -98,8 +98,7 @@ if upload_df is not None:
             else:
                 _, p = mannwhitneyu(dataset1[key], dataset2[key], alternative='two-sided')  
                 method = 'Mann-Whitney U'
-            st.write(dataset1[key].mean())
-            st.write(dataset2[key].mean())
+
             results_new_row = {
             'Gruppe 1': groups_to_compare[0],
             'Gruppe 2': groups_to_compare[1],

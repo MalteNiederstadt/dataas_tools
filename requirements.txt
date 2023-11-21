@@ -7,3 +7,4 @@ plotly
 scipy
 pyxlsb
 sqlfluff
+xlsxwriter 
