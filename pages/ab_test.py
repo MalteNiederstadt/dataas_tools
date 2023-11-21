@@ -119,7 +119,7 @@ if upload_df is not None:
             # Define the first custom styling function to highlight the larger value column
             def highlight_larger_value(row):
                 max_col = 'Durchschnitt 1' if row['Durchschnitt 1'] > row['Durchschnitt 2'] else 'Durchschnitt 2'
-                styles = ['background-color: yellow' if col == max_col else '' for col in row.index]
+                styles = ['background-color: #475c1f' if col == max_col else '' for col in row.index]
                 return styles
 
             # Define the second custom styling function to highlight significant rows
