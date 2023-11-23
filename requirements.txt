@@ -8,3 +8,4 @@ scipy
 pyxlsb
 sqlfluff
 xlsxwriter 
+openpyxl

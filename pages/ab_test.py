@@ -188,7 +188,7 @@ if upload_df is not None:
         len_check = len(groups_to_compare)
         if len_check != 2:
                if len_check < 2:
-                   st.markdown(f':warning: :red[Please choose {2-len(groups_to_compare)} more groups]')
+                   st.markdown(f':warning: :red[Please choose {2-len(groups_to_compare)} more group(s)]')
                if len_check > 2:
                    st.markdown(':warning: :red[Please choose at max 2 groups]')
         if len(metric_columns) == 0:
